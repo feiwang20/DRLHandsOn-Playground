@@ -15,7 +15,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-NUM_LAYERS = 2
+NUM_LAYERS = 3
 HIDDEN_SIZE = 128
 BATCH_SIZE = 100
 PERCENTILE = 30
@@ -51,12 +51,12 @@ class Net(nn.Module):
         return (torch.zeros(self.num_layers, batch_size, self.hidden_size),
                 torch.zeros(self.num_layers, batch_size, self.hidden_size))
 
-
     def forward(self, x, hidden=None):
         if hidden is None:
             lstm_out, hidden = self.lstm(x)
         else:
-            lstm_out, hidden = self.lstm(x, (hidden[0], hidden[1]))
+            hn, cn = hidden[0], hidden[1]
+            lstm_out, hidden = self.lstm(x, (hn, cn))
         probs = self.policy(lstm_out[:, -1, :])
         return probs, hidden
 
@@ -80,15 +80,15 @@ def iterate_batches(env, net, batch_size):
         next_obs, reward, is_done, _ = env.step(action)
         episode_reward += reward
         # print(hidden[0])
-        hn = hidden[0].view(1, NUM_LAYERS, HIDDEN_SIZE)
-        cn = hidden[1].view(-1, NUM_LAYERS, HIDDEN_SIZE)
+        hn = hidden[0].view(1, NUM_LAYERS, HIDDEN_SIZE).data.numpy()[0]
+        cn = hidden[1].view(-1, NUM_LAYERS, HIDDEN_SIZE).data.numpy()[0]
         # print(hn)
-        episode_steps.append(EpisodeStep(observation=obs, action=action, hn=hn.tolist(), cn=cn.tolist()))
+        episode_steps.append(EpisodeStep(observation=obs, action=action, hn=hn, cn=cn))
         if is_done:
             batch.append(Episode(reward=episode_reward, steps=episode_steps))
             episode_reward = 0.0
             episode_steps = []
-            hidden = net.init_hidden()
+            next_obs = env.reset()
             if len(batch) == batch_size:
                 yield batch
                 batch = []
@@ -140,8 +140,8 @@ if __name__ == "__main__":
         full_batch = full_batch[-500:]
 
         optimizer.zero_grad()
-        hn = hn.view(-1, NUM_LAYERS, HIDDEN_SIZE)
-        cn = cn.view(-1, NUM_LAYERS, HIDDEN_SIZE)
+        hn = torch.FloatTensor(hn).view(NUM_LAYERS, -1, HIDDEN_SIZE)
+        cn = torch.FloatTensor(cn).view(NUM_LAYERS, -1, HIDDEN_SIZE)
         action_scores_v, _ = net(obs_v, (hn, cn))
         loss_v = objective(action_scores_v, acts_v)
         loss_v.backward()
