@@ -2,6 +2,8 @@
 import random
 import gym
 import gym.spaces
+import gym.wrappers
+import gym.envs.toy_text.frozen_lake
 from collections import namedtuple
 import numpy as np
 from tensorboardX import SummaryWriter
@@ -19,7 +21,7 @@ BATCH_SIZE = 100
 PERCENTILE = 30
 GAMMA = 0.9
 
-log_file = path.join(project_root.DIR, 'Chapter04', 'experiment_data', '03_frozenlake_nonslippery_lstm.txt')
+log_file = path.join(project_root.DIR, 'Chapter04', 'experiment_data', '04_frozenlake_nonslippery_lstm.txt')
 with open(log_file, 'a') as f:
     f.write(datetime.now().strftime("\n\n\n\n%Y-%m-%d %H-%M-%S\n\n"))
 
