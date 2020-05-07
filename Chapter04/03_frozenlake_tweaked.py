@@ -5,6 +5,9 @@ import gym.spaces
 from collections import namedtuple
 import numpy as np
 from tensorboardX import SummaryWriter
+from os import path
+import project_root
+from datetime import datetime
 
 import torch
 import torch.nn as nn
@@ -15,6 +18,10 @@ HIDDEN_SIZE = 128
 BATCH_SIZE = 100
 PERCENTILE = 30
 GAMMA = 0.9
+
+log_file = path.join(project_root.DIR, 'Chapter04', 'experiment_data', '03_frozenlake_tweaked.txt')
+with open(log_file, 'a') as f:
+    f.write(datetime.now().strftime("\n\n\n\n%Y-%m-%d %H-%M-%S\n\n"))
 
 
 class DiscreteOneHotWrapper(gym.ObservationWrapper):
@@ -115,6 +122,9 @@ if __name__ == "__main__":
         loss_v.backward()
         optimizer.step()
         print("%d: loss=%.3f, reward_mean=%.3f, reward_bound=%.3f, batch=%d" % (
+            iter_no, loss_v.item(), reward_mean, reward_bound, len(full_batch)))
+        with open(log_file, 'a') as f:
+            f.write("%d: loss=%.3f, reward_mean=%.3f, reward_bound=%.3f, batch=%d \n" % (
             iter_no, loss_v.item(), reward_mean, reward_bound, len(full_batch)))
         writer.add_scalar("loss", loss_v.item(), iter_no)
         writer.add_scalar("reward_mean", reward_mean, iter_no)
