@@ -2,8 +2,6 @@
 import random
 import gym
 import gym.spaces
-import gym.wrappers
-import gym.envs.toy_text.frozen_lake
 from collections import namedtuple
 import numpy as np
 from tensorboardX import SummaryWriter
@@ -15,15 +13,16 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-
+NUM_LAYERS = 1
 HIDDEN_SIZE = 128
 BATCH_SIZE = 100
 PERCENTILE = 30
 GAMMA = 0.9
 
-log_file = path.join(project_root.DIR, 'Chapter04', 'experiment_data', '03_frozenlake_nonslippery.txt')
+log_file = path.join(project_root.DIR, 'Chapter04', 'experiment_data', '03_frozenlake_nonslippery_lstm.txt')
 with open(log_file, 'a') as f:
     f.write(datetime.now().strftime("\n\n\n\n%Y-%m-%d %H-%M-%S\n\n"))
+
 
 class DiscreteOneHotWrapper(gym.ObservationWrapper):
     def __init__(self, env):
@@ -38,16 +37,27 @@ class DiscreteOneHotWrapper(gym.ObservationWrapper):
 
 
 class Net(nn.Module):
-    def __init__(self, obs_size, hidden_size, n_actions):
+    def __init__(self, obs_size, hidden_size, n_actions, num_layers):
         super(Net, self).__init__()
-        self.net = nn.Sequential(
-            nn.Linear(obs_size, hidden_size),
-            nn.ReLU(),
-            nn.Linear(hidden_size, n_actions)
-        )
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.lstm = nn.LSTM(obs_size, hidden_size, num_layers, batch_first=True)
 
-    def forward(self, x):
-        return self.net(x)
+        self.policy = nn.Linear(hidden_size, n_actions)
+
+    def init_hidden(self, batch_size=1):
+        return (torch.zeros(self.num_layers, batch_size, self.hidden_size),
+                torch.zeros(self.num_layers, batch_size, self.hidden_size))
+
+
+    def forward(self, x, hidden=None):
+        if hidden is None:
+            lstm_out, hidden = self.lstm(x)
+        else:
+            hn, cn = hidden[0], hidden[1]
+            lstm_out, hidden = self.lstm(x, (hn, cn))
+        probs = self.policy(lstm_out[:, -1, :])
+        return probs, hidden
 
 
 Episode = namedtuple('Episode', field_names=['reward', 'steps'])
@@ -58,11 +68,12 @@ def iterate_batches(env, net, batch_size):
     batch = []
     episode_reward = 0.0
     episode_steps = []
-    obs = env.reset()
+    obs = [env.reset()]
     sm = nn.Softmax(dim=1)
     while True:
         obs_v = torch.FloatTensor([obs])
-        act_probs_v = sm(net(obs_v))
+        act_probs, _ = net(obs_v)
+        act_probs_v = sm(act_probs)
         act_probs = act_probs_v.data.numpy()[0]
         action = np.random.choice(len(act_probs), p=act_probs)
         next_obs, reward, is_done, _ = env.step(action)
@@ -76,7 +87,7 @@ def iterate_batches(env, net, batch_size):
             if len(batch) == batch_size:
                 yield batch
                 batch = []
-        obs = next_obs
+        obs = [next_obs]
 
 
 def filter_batch(batch, percentile):
@@ -104,10 +115,10 @@ if __name__ == "__main__":
     obs_size = env.observation_space.shape[0]
     n_actions = env.action_space.n
 
-    net = Net(obs_size, HIDDEN_SIZE, n_actions)
+    net = Net(obs_size, HIDDEN_SIZE, n_actions, NUM_LAYERS)
     objective = nn.CrossEntropyLoss()
     optimizer = optim.Adam(params=net.parameters(), lr=0.001)
-    writer = SummaryWriter(comment="-frozenlake-nonslippery")
+    writer = SummaryWriter(comment="-frozenlake-tweaked")
 
     full_batch = []
     for iter_no, batch in enumerate(iterate_batches(env, net, BATCH_SIZE)):
@@ -120,7 +131,7 @@ if __name__ == "__main__":
         full_batch = full_batch[-500:]
 
         optimizer.zero_grad()
-        action_scores_v = net(obs_v)
+        action_scores_v, _ = net(obs_v)
         loss_v = objective(action_scores_v, acts_v)
         loss_v.backward()
         optimizer.step()
