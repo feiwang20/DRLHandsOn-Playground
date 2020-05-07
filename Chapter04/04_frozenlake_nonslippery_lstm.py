@@ -15,7 +15,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-NUM_LAYERS = 1
+NUM_LAYERS = 2
 HIDDEN_SIZE = 128
 BATCH_SIZE = 100
 PERCENTILE = 30
@@ -72,9 +72,10 @@ def iterate_batches(env, net, batch_size):
     episode_steps = []
     obs = [env.reset()]
     sm = nn.Softmax(dim=1)
+    hidden = net.init_hidden()
     while True:
         obs_v = torch.FloatTensor([obs])
-        act_probs, _ = net(obs_v)
+        act_probs, hidden = net(obs_v, hidden)
         act_probs_v = sm(act_probs)
         act_probs = act_probs_v.data.numpy()[0]
         action = np.random.choice(len(act_probs), p=act_probs)
@@ -86,6 +87,7 @@ def iterate_batches(env, net, batch_size):
             episode_reward = 0.0
             episode_steps = []
             next_obs = env.reset()
+            hidden = net.init_hidden()
             if len(batch) == batch_size:
                 yield batch
                 batch = []
