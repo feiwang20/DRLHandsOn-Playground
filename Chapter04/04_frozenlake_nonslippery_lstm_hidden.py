@@ -15,7 +15,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-NUM_LAYERS = 3
+NUM_LAYERS = 1
 HIDDEN_SIZE = 128
 BATCH_SIZE = 100
 PERCENTILE = 30
@@ -71,6 +71,7 @@ def iterate_batches(env, net, batch_size):
     episode_steps = []
     obs = [env.reset()]
     sm = nn.Softmax(dim=1)
+    prev_hidden = net.init_hidden()
     while True:
         obs_v = torch.FloatTensor([obs])
         act_probs, hidden = net(obs_v)
@@ -80,8 +81,8 @@ def iterate_batches(env, net, batch_size):
         next_obs, reward, is_done, _ = env.step(action)
         episode_reward += reward
         # print(hidden[0])
-        hn = hidden[0].view(1, NUM_LAYERS, HIDDEN_SIZE).data.numpy()[0]
-        cn = hidden[1].view(-1, NUM_LAYERS, HIDDEN_SIZE).data.numpy()[0]
+        hn = prev_hidden[0].view(1, NUM_LAYERS, HIDDEN_SIZE).data.numpy()[0]
+        cn = prev_hidden[1].view(-1, NUM_LAYERS, HIDDEN_SIZE).data.numpy()[0]
         # print(hn)
         episode_steps.append(EpisodeStep(observation=obs, action=action, hn=hn, cn=cn))
         if is_done:
@@ -89,10 +90,12 @@ def iterate_batches(env, net, batch_size):
             episode_reward = 0.0
             episode_steps = []
             next_obs = env.reset()
+            hidden = net.init_hidden()
             if len(batch) == batch_size:
                 yield batch
                 batch = []
         obs = [next_obs]
+        prev_hidden = hidden
 
 
 def filter_batch(batch, percentile):
