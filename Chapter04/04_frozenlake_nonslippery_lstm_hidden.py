@@ -74,7 +74,7 @@ def iterate_batches(env, net, batch_size):
     prev_hidden = net.init_hidden()
     while True:
         obs_v = torch.FloatTensor([obs])
-        act_probs, hidden = net(obs_v)
+        act_probs, hidden = net(obs_v, prev_hidden)
         act_probs_v = sm(act_probs)
         act_probs = act_probs_v.data.numpy()[0]
         action = np.random.choice(len(act_probs), p=act_probs)
