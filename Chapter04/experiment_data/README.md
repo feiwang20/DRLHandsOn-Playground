@@ -7,7 +7,7 @@
 ### The following are different versions of passing hidden states:
 
 0. `lstm`: no hidden states passed and updated between action taking steps as well as batches of training
-  * >1 layers of lstm has better performance than original nn in terms of convergence speed and stability
+  * number of layers >1 has better performance than original nn in terms of convergence speed and stability
   * 1 layer of lstm performs worse than original nn
 
 1. `lstm-pass-hidden-in-episode`: hidden states passed and updated between action taking steps
